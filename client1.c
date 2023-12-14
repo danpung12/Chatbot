@@ -13,18 +13,38 @@
 #define MAX_MESSAGE (MAX_BUFFER + 64) // 시간과 닉네임을 위한 추가 공간
 
 int sockfd;  // 클라이언트 소켓. 전역 변수로 변경
-char nickname[32]; // 닉네임도 전역 변수로 변경
 
-// 현재 시간을 문자열로 변환하는 함수
 void get_time_string(char *buffer, int size) {
     time_t rawtime;
-    struct tm * timeinfo;
+    struct tm *timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     strftime(buffer, size, "(%H:%M)", timeinfo);
 }
 
-// 서버로부터 메시지를 읽어 출력하는 함수
+void send_file(const char *receiver_nickname, const char *file_name) {
+    char message[MAX_MESSAGE];
+    snprintf(message, sizeof(message), "FILE_TRANSMIT_START:%s:%s", receiver_nickname, file_name);
+    write(sockfd, message, strlen(message));
+
+    FILE *file = fopen(file_name, "rb");
+    if (file == NULL) {
+        printf("파일을 열 수 없습니다.\n");
+        return;
+    }
+
+    while (1) {
+        char buffer[MAX_BUFFER];
+        size_t bytes_read = fread(buffer, 1, MAX_BUFFER, file);
+        if (bytes_read <= 0) {
+            break;  // 파일 내용이 더 이상 없으면 종료
+        }
+        write(sockfd, buffer, bytes_read);  // 읽은 내용을 서버에 전송
+    }
+
+    fclose(file);
+}
+
 void *read_messages(void *arg) {
     int sockfd = *(int *)arg;
     char buffer[MAX_BUFFER];
@@ -35,30 +55,27 @@ void *read_messages(void *arg) {
             break;
         }
 
-        // 파일 전송 요청 메시지 처리
-        if (strncmp(buffer, "FILE_TRANSMIT_REQUEST", 20) == 0) {
-            // 파일명 추출
-            char *file_name = strtok(buffer + 20, ":");
+        if (strncmp(buffer, "파일 '", 4) == 0) {
+            char *file_name = strtok(buffer + 4, "'");
+            FILE *file = fopen(file_name, "wb");
 
-            // 사용자에게 수락 여부 묻기
-            char response;
-            printf("%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n: ", nickname, file_name);
-            scanf(" %c", &response);
-            getchar(); // 버퍼 비우기
-
-            if (response == 'y' || response == 'Y') {
-                // 수락 메시지 전송
-                char message[MAX_MESSAGE];
-                snprintf(message, sizeof(message), "FILE_TRANSMIT_ACCEPT:%s:%s", nickname, file_name);
-                write(sockfd, message, strlen(message));
-            } else if (response == 'n' || response == 'N') {
-                // 거절 메시지 전송
-                char message[MAX_MESSAGE];
-                snprintf(message, sizeof(message), "FILE_TRANSMIT_REJECT:%s:%s", nickname, file_name);
-                write(sockfd, message, strlen(message));
+            if (file == NULL) {
+                printf("파일을 열 수 없습니다.\n");
+                continue;
             }
+
+            while (1) {
+                ssize_t bytes_read = read(sockfd, buffer, MAX_BUFFER - 1);
+                if (bytes_read <= 0) {
+                    break;  // 파일 내용이 더 이상 없으면 종료
+                }
+                fwrite(buffer, 1, bytes_read, file);  // 읽은 내용을 파일에 쓰기
+            }
+
+            fclose(file);
+            printf("파일 '%s'를 성공적으로 받았습니다.\n", file_name);
         } else {
-            printf("%s", buffer); // 서버로부터 받은 메시지 출력
+            printf("%s\n", buffer); // 서버로부터 받은 메시지 출력
         }
     }
     return NULL;
@@ -118,9 +135,8 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr;
     struct hostent *server;
 
-    // 사용자로부터 호스트 이름과 포트 번호를 입력받음
     if (argc < 3) {
-        fprintf(stderr, "usage %s hostname port", argv[0]);
+        fprintf(stderr, "usage %s hostname port\n", argv[0]);
         exit(1);
     }
 
@@ -134,7 +150,7 @@ int main(int argc, char *argv[]) {
 
     server = gethostbyname(argv[1]);
     if (server == NULL) {
-        fprintf(stderr, "ERROR, no such host");
+        fprintf(stderr, "ERROR, no such host\n");
         exit(1);
     }
 
@@ -143,31 +159,28 @@ int main(int argc, char *argv[]) {
     bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(port_no);
 
-    // 서버에 연결
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("ERROR connecting");
         exit(1);
     }
 
-    // 닉네임 전송
+    char nickname[32];
     printf("사용할 닉네임: ");
     fgets(nickname, 31, stdin);
-    nickname[strcspn(nickname, "")] = 0; // 개행 문자 제거
+    nickname[strcspn(nickname, "\n")] = 0; // 개행 문자 제거
     write(sockfd, nickname, strlen(nickname)); // 닉네임 서버에 전송
 
-    // 시그널 핸들러 등록
     signal(SIGINT, signal_handler);
 
-    // 별도의 스레드에서 메시지 읽기 시작
     pthread_t read_thread;
     pthread_create(&read_thread, NULL, read_messages, (void *)&sockfd);
     pthread_detach(read_thread);
 
-    // 메인 스레드는 메시지 작성에 사용됨
     char buffer[MAX_BUFFER];
+
     while (1) {
         fgets(buffer, MAX_BUFFER - 1, stdin);
-        buffer[strcspn(buffer, "")] = 0; // 개행 문자 제거
+        buffer[strcspn(buffer, "\n")] = 0; // 개행 문자 제거
 
         char time_string[10];
         get_time_string(time_string, sizeof(time_string)); // 현재 시간 가져오기
@@ -175,9 +188,10 @@ int main(int argc, char *argv[]) {
         char message[MAX_MESSAGE];
         snprintf(message, MAX_MESSAGE, "%s [%s] :%s", time_string, nickname, buffer); // 메시지 작성
 
-        // 클라이언트 측에서 메시지 출력
-        write(sockfd, message, strlen(message)); // 메시지 서버에 전송
+        printf("%s\n", message);
+        write(sockfd, buffer, strlen(buffer));
     }
 
+    close(sockfd); // 소켓 닫기
     return 0;
 }
