@@ -24,7 +24,7 @@ void get_time_string(char *buffer, int size) {
 
 void send_file(const char *receiver_nickname, const char *file_name) {
     char message[MAX_MESSAGE];
-    snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s\n%s", receiver_nickname, file_name);
+    snprintf(message, sizeof(message), "FILE_TRANSMIT_START:%s:%s", receiver_nickname, file_name);
     write(sockfd, message, strlen(message));
 
     FILE *file = fopen(file_name, "rb");
@@ -84,12 +84,12 @@ void *read_messages(void *arg) {
 // 시그널 핸들러 함수
 void signal_handler(int signal) {
     if (signal == SIGINT) {
-        printf("======= 메뉴 =======");
-        printf("1. 채팅 나가기\n");
-        printf("2. 메시지 전송\n");
-        printf("3. 파일 전송\n");
-        printf("0. 메뉴 종료\n");
-        printf("===================");
+        printf("\n======= 메뉴 =======");
+        printf("\n1. 채팅 나가기");
+        printf("\n2. 메시지 전송");
+        printf("\n3. 파일 전송");
+        printf("\n0. 메뉴 종료\n");
+        printf("===================\n");
 
         char option;
         printf("메뉴를 선택하세요: ");
@@ -105,7 +105,7 @@ void signal_handler(int signal) {
             char buffer[MAX_BUFFER];
             printf("메시지를 입력하세요: ");
             fgets(buffer, MAX_BUFFER - 1, stdin);
-            buffer[strcspn(buffer, "")] = 0; // 개행 문자 제거
+            buffer[strcspn(buffer, "\n")] = 0; // 개행 문자 제거
             write(sockfd, buffer, strlen(buffer));
         } else if (option == '3') {
             // 파일 전송 요청
@@ -113,15 +113,15 @@ void signal_handler(int signal) {
             char file_name[32];
             printf("파일을 전송할 사용자의 닉네임을 입력하세요: ");
             fgets(receiver_nickname, 31, stdin);
-            receiver_nickname[strcspn(receiver_nickname, "")] = 0; // 개행 문자 제거
+            receiver_nickname[strcspn(receiver_nickname, "\n")] = 0; // 개행 문자 제거
 
             printf("전송할 파일명을 입력하세요: ");
             fgets(file_name, 31, stdin);
-            file_name[strcspn(file_name, "")] = 0; // 개행 문자 제거
+            file_name[strcspn(file_name, "\n")] = 0; // 개행 문자 제거
 
-    char message[MAX_MESSAGE];
-        snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s\n%s", receiver_nickname, file_name);
-        write(sockfd, message, strlen(message));
+            char message[MAX_MESSAGE];
+            snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s:%s", receiver_nickname, file_name);
+            write(sockfd, message, strlen(message)); 
         } else if (option == '0') {
             printf("채팅으로 돌아갑니다.");
         } else {
