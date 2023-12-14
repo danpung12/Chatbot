@@ -13,6 +13,7 @@
 #define MAX_MESSAGE (MAX_BUFFER + 64) // 시간과 닉네임을 위한 추가 공간
 
 int sockfd;  // 클라이언트 소켓. 전역 변수로 변경
+char nickname[32]; // 닉네임도 전역 변수로 변경
 
 // 현재 시간을 문자열로 변환하는 함수
 void get_time_string(char *buffer, int size) {
@@ -34,32 +35,28 @@ void *read_messages(void *arg) {
             break;
         }
 
-        // 파일 전송 완료 메시지 처리
-        if (strncmp(buffer, "파일 '", 4) == 0) {
+        // 파일 전송 요청 메시지 처리
+        if (strncmp(buffer, "FILE_TRANSMIT_REQUEST", 20) == 0) {
             // 파일명 추출
-            char *file_name = strtok(buffer + 4, "'");
+            char *file_name = strtok(buffer + 20, ":");
 
-            // 파일 내용 받기
-            FILE *file = fopen(file_name, "wb");
+            // 사용자에게 수락 여부 묻기
+            char response;
+            printf("%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n: ", nickname, file_name);
+            scanf(" %c", &response);
+            getchar(); // 버퍼 비우기
 
-            if (file == NULL) {
-                printf("파일을 열 수 없습니다.");
-                continue;
+            if (response == 'y' || response == 'Y') {
+                // 수락 메시지 전송
+                char message[MAX_MESSAGE];
+                snprintf(message, sizeof(message), "FILE_TRANSMIT_ACCEPT:%s:%s", nickname, file_name);
+                write(sockfd, message, strlen(message));
+            } else if (response == 'n' || response == 'N') {
+                // 거절 메시지 전송
+                char message[MAX_MESSAGE];
+                snprintf(message, sizeof(message), "FILE_TRANSMIT_REJECT:%s:%s", nickname, file_name);
+                write(sockfd, message, strlen(message));
             }
-
-            while (1) {
-                ssize_t bytes_read = read(sockfd, buffer, MAX_BUFFER - 1);
-
-                if (bytes_read <= 0) {
-                    break;  // 파일 내용이 더 이상 없으면 종료
-                }
-
-                fwrite(buffer, 1, bytes_read, file);  // 읽은 내용을 파일에 쓰기
-            }
-
-            // 파일 닫기
-            fclose(file);
-            printf("파일 '%s'를 성공적으로 받았습니다.", file_name);
         } else {
             printf("%s", buffer); // 서버로부터 받은 메시지 출력
         }
@@ -106,32 +103,8 @@ void signal_handler(int signal) {
             file_name[strcspn(file_name, "")] = 0; // 개행 문자 제거
 
             char message[MAX_MESSAGE];
-            snprintf(message, sizeof(message), "FILE_TRANSMIT_START:%s:%s", receiver_nickname, file_name);
+            snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s:%s", receiver_nickname, file_name);
             write(sockfd, message, strlen(message)); 
-
-            // 파일 열기
-            FILE *file = fopen(file_name, "rb");
-            if (file == NULL) {
-                printf("파일을 열 수 없습니다.");
-                return;
-            }
-
-            // 파일 내용을 읽어서 서버에 전송
-            char buffer[MAX_BUFFER];
-            while (1) {
-                size_t bytes_read = fread(buffer, 1, MAX_BUFFER - 1, file);
-                if (bytes_read <= 0) {
-                    break;  // 파일 내용이 더 이상 없으면 종료
-                }
-
-                write(sockfd, buffer, bytes_read);  // 읽은 내용을 서버에 전송
-            }
-
-            // 파일 전송 종료 신호 전송
-            write(sockfd, "FILE_TRANSMIT_END", 17);
-
-            // 파일 닫기
-            fclose(file);
         } else if (option == '0') {
             printf("채팅으로 돌아갑니다.");
         } else {
@@ -177,7 +150,6 @@ int main(int argc, char *argv[]) {
     }
 
     // 닉네임 전송
-    char nickname[32];
     printf("사용할 닉네임: ");
     fgets(nickname, 31, stdin);
     nickname[strcspn(nickname, "")] = 0; // 개행 문자 제거
@@ -197,32 +169,14 @@ int main(int argc, char *argv[]) {
         fgets(buffer, MAX_BUFFER - 1, stdin);
         buffer[strcspn(buffer, "")] = 0; // 개행 문자 제거
 
-        char response;
-        printf("%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n: ", nickname, buffer);
-        scanf(" %c", &response);
-        getchar(); // 버퍼 비우기
+        char time_string[10];
+        get_time_string(time_string, sizeof(time_string)); // 현재 시간 가져오기
 
-        if (response == 'y' || response == 'Y') {
-            // 수락 메시지 전송
-            char message[MAX_MESSAGE];
-            snprintf(message, sizeof(message), "FILE_TRANSMIT_ACCEPT:%s:%s", nickname, buffer);
-            write(sockfd, message, strlen(message));
-        } else if (response == 'n' || response == 'N') {
-            // 거절 메시지 전송
-            char message[MAX_MESSAGE];
-            snprintf(message, sizeof(message), "FILE_TRANSMIT_REJECT:%s:%s", nickname, buffer);
-            write(sockfd, message, strlen(message));
-        } else {
-            // 기존 메시지 전송 코드
-            char time_string[10];
-            get_time_string(time_string, sizeof(time_string)); // 현재 시간 가져오기
+        char message[MAX_MESSAGE];
+        snprintf(message, MAX_MESSAGE, "%s [%s] :%s", time_string, nickname, buffer); // 메시지 작성
 
-            char message[MAX_MESSAGE];
-            snprintf(message, MAX_MESSAGE, "%s [%s] :%s", time_string, nickname, buffer); // 메시지 작성
-
-            // 클라이언트 측에서 메시지 출력
-            write(sockfd, message, strlen(message)); // 메시지 서버에 전송
-        }
+        // 클라이언트 측에서 메시지 출력
+        write(sockfd, message, strlen(message)); // 메시지 서버에 전송
     }
 
     return 0;
