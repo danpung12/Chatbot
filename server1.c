@@ -25,13 +25,13 @@ int find_client_by_nickname(const char *nickname) {
             return i;
         }
     }
-    return -1;  // 찾지 못한 경우
+    return -1; 
 }
 
 void *handle_client(void *arg) {
     Client *client = (Client *)arg;
     char buffer[MAX_BUFFER];
-    FILE *file = NULL;  // 파일 전송을 위한 변수 추가
+    FILE *fp = NULL;
 
     while (1) {
         bzero(buffer, MAX_BUFFER);
@@ -40,34 +40,71 @@ void *handle_client(void *arg) {
         }
 
         if (strncmp(buffer, "FILE_TRANSMIT_START:", 20) == 0) {
-            if (file != NULL) {
-                fclose(file);
-                file = NULL;
+            char *receiver_nickname = strtok(buffer + 20, ":");
+            char *file_name = strtok(NULL, ":");
+
+            int receiver_index = find_client_by_nickname(receiver_nickname);
+
+            if (receiver_index != -1) {
+                char message[MAX_MESSAGE];
+                snprintf(message, sizeof(message), "%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n", client->nickname, file_name);
+                write(clients[receiver_index].socket, message, strlen(message));
             }
+        } else if (strncmp(buffer, "FILE_TRANSMIT_ACCEPT:y:", 23) == 0) {
+            char *sender_nickname = strtok(buffer + 23, ":");
+            char *file_name = strtok(NULL, ":");
 
-            // 파일명 추출
-            char *file_name = strtok(buffer + 20, ":");
+            int sender_index = find_client_by_nickname(sender_nickname);
+            if (sender_index != -1) {
+                char file_path[512];
+                snprintf(file_path, sizeof(file_path), "/tmp/%s", file_name);  
+                fp = fopen(file_path, "wb");  
 
-            // 파일 생성 및 열기
-            file = fopen(file_name, "wb");
-            if (file == NULL) {
-                printf("파일을 열 수 없습니다.");
-                continue;
+                if (fp == NULL) {
+                    perror("파일 생성 실패");
+                    continue;
+                }
+
+                while (1) {
+                    ssize_t bytes_read = read(clients[sender_index].socket, buffer, MAX_BUFFER - 1);
+                    if (bytes_read <= 0) {
+                        break;
+                    }
+                    fwrite(buffer, 1, bytes_read, fp);
+                }
+
+                fclose(fp);  
+                for (int i = 0; i < client_count; i++) {
+                    if (clients[i].socket != client->socket) {
+                        write(clients[i].socket, buffer, strlen(buffer));
+                    }
+                }
             }
-
-            printf("파일 '%s' 수신을 시작합니다.", file_name);
         } else if (strncmp(buffer, "FILE_TRANSMIT_END", 17) == 0) {
-            // 파일 닫기
-            if (file != NULL) {
-                fclose(file);
-                file = NULL;
-                printf("파일 수신을 완료했습니다.");
+            if (fp != NULL) {
+                fclose(fp);  
+                fp = NULL;
             }
-        } else if (file != NULL) {
-            // 파일 쓰기
-            fwrite(buffer, 1, strlen(buffer), file);
+        } else if (fp != NULL) {
+            fwrite(buffer, sizeof(char), strlen(buffer), fp);  
         } else {
-            // 기존 메시지 처리 로직 유지
+            time_t rawtime;
+            struct tm * timeinfo;
+            char timestamp[64];
+            time(&rawtime);
+            timeinfo = localtime(&rawtime);
+            strftime(timestamp, sizeof(timestamp), "(%H:%M)", timeinfo);
+
+            char message[MAX_MESSAGE];
+            snprintf(message, sizeof(message), "%s [%s]: %s", timestamp, client->nickname, buffer);
+
+            pthread_mutex_lock(&clients_mutex);
+            for (int i = 0; i < client_count; i++) {
+                if (clients[i].socket != client->socket) {
+                    write(clients[i].socket, message, strlen(message));
+                }
+            }
+            pthread_mutex_unlock(&clients_mutex);
         }
     }
 
@@ -86,127 +123,63 @@ void *handle_client(void *arg) {
     return NULL;
 }
 
-
 int main(int argc, char *argv[]) {
-
     int sockfd, newsockfd, port_no;
-
     struct sockaddr_in serv_addr, cli_addr;
-
     socklen_t clilen;
 
-
-
     if (argc < 2) {
-
         fprintf(stderr, "ERROR, no port provided");
-
         exit(1);
-
     }
-
-
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
     if (sockfd < 0) {
-
         perror("ERROR opening socket");
-
         exit(1);
-
     }
-
-
 
     bzero((char *)&serv_addr, sizeof(serv_addr));
-
     port_no = atoi(argv[1]);
-
     serv_addr.sin_family = AF_INET;
-
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-
     serv_addr.sin_port = htons(port_no);
 
-
-
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-
         perror("ERROR on binding");
-
         exit(1);
-
     }
 
-
-
     listen(sockfd, 5);
-
     clilen = sizeof(cli_addr);
 
-
-
     while (1) {
-
         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
 
-
-
         if (newsockfd < 0) {
-
             perror("ERROR on accept");
-
             exit(1);
-
         }
-
-
 
         pthread_mutex_lock(&clients_mutex);
 
         if (client_count >= MAX_CLIENTS) {
-
             printf("클라이언트 수가 너무 많습니다.");
-
             close(newsockfd);
-
         } else {
-
             clients[client_count].socket = newsockfd;
-
-
-
             bzero(clients[client_count].nickname, 32);
-
             read(newsockfd, clients[client_count].nickname, 31);
-
-
-
             printf("%s가 연결되었습니다.", clients[client_count].nickname);
-
-
-
             client_count++;
 
-
-
             pthread_t thread;
-
             pthread_create(&thread, NULL, handle_client, (void *)&clients[client_count - 1]);
-
             pthread_detach(thread);
-
         }
-
         pthread_mutex_unlock(&clients_mutex);
-
     }
 
-
-
-    close(sockfd); // 소켓 닫기
-
+    close(sockfd);
     return 0;
-
 }
