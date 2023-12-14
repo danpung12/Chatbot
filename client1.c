@@ -85,10 +85,10 @@ void *read_messages(void *arg) {
 void signal_handler(int signal) {
     if (signal == SIGINT) {
         printf("======= 메뉴 =======");
-        printf("1. 채팅 나가기");
-        printf("2. 메시지 전송");
-        printf("3. 파일 전송");
-        printf("0. 메뉴 종료");
+        printf("1. 채팅 나가기\n");
+        printf("2. 메시지 전송\n");
+        printf("3. 파일 전송\n");
+        printf("0. 메뉴 종료\n");
         printf("===================");
 
         char option;
@@ -119,9 +119,9 @@ void signal_handler(int signal) {
             fgets(file_name, 31, stdin);
             file_name[strcspn(file_name, "")] = 0; // 개행 문자 제거
 
-            char message[MAX_MESSAGE];
-            snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s:%s", receiver_nickname, file_name);
-            write(sockfd, message, strlen(message)); 
+    char message[MAX_MESSAGE];
+        snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s\n%s", receiver_nickname, file_name);
+        write(sockfd, message, strlen(message));
         } else if (option == '0') {
             printf("채팅으로 돌아갑니다.");
         } else {
