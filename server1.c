@@ -33,7 +33,7 @@ void *handle_client(void *arg) {
     char buffer[MAX_BUFFER];
     FILE *fp = NULL;
 
-    while (1) {
+ while (1) {
         bzero(buffer, MAX_BUFFER);
         if (read(client->socket, buffer, MAX_BUFFER - 1) == 0) {
             break;
