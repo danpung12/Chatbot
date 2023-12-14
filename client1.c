@@ -121,7 +121,7 @@ void signal_handler(int signal) {
             file_name[strcspn(file_name, "\n")] = 0; // 개행 문자 제거
 
             char message[MAX_MESSAGE];
-            snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s:%s", receiver_nickname, file_name);
+            snprintf(message, sizeof(message), "%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n", receiver_nickname, file_name);
             write(sockfd, message, strlen(message)); 
         } else if (option == '0') {
             printf("채팅으로 돌아갑니다.");
