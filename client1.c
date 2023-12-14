@@ -24,7 +24,7 @@ void get_time_string(char *buffer, int size) {
 
 void send_file(const char *receiver_nickname, const char *file_name) {
     char message[MAX_MESSAGE];
-    snprintf(message, sizeof(message), "FILE_TRANSMIT_START:%s:%s", receiver_nickname, file_name);
+    snprintf(message, sizeof(message), "FILE_TRANSMIT_REQUEST:%s\n%s", receiver_nickname, file_name);
     write(sockfd, message, strlen(message));
 
     FILE *file = fopen(file_name, "rb");
@@ -44,6 +44,7 @@ void send_file(const char *receiver_nickname, const char *file_name) {
 
     fclose(file);
 }
+
 
 void *read_messages(void *arg) {
     int sockfd = *(int *)arg;
