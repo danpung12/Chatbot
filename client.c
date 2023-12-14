@@ -9,17 +9,11 @@
 #include <time.h>
 #include <signal.h>
 
-
-
 #define MAX_BUFFER 1024
 #define MAX_MESSAGE (MAX_BUFFER + 64) // 시간과 닉네임을 위한 추가 공간
 
-
-
 int sockfd;  // 클라이언트 소켓. 전역 변수로 변경
 // 현재 시간을 문자열로 변환하는 함수
-
-
 
 void get_time_string(char *buffer, int size) {
 time_t rawtime;
@@ -30,8 +24,6 @@ timeinfo = localtime(&rawtime);
 strftime(buffer, size, "(%H:%M)", timeinfo);
 
 }
-
-
 
 // 서버로부터 메시지를 읽어 출력하는 함수
 void *read_messages(void *arg) {
@@ -44,11 +36,6 @@ bzero(buffer, MAX_BUFFER);
 if (read(sockfd, buffer, MAX_BUFFER - 1) == 0) {
     break;
 }
-
-
-
-
-
 
 
 // 파일 전송 완료 메시지 처리
@@ -191,8 +178,6 @@ if (option == '1') {
     printf("채팅으로 돌아갑니다.\n");
 
 } else {
-
-
     printf("없는 메뉴 번호입니다.\n");
 
 }
@@ -214,76 +199,29 @@ exit(1);
 
 }
 
-
-
 port_no = atoi(argv[2]);
-
-
-
 sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-
-
 if (sockfd < 0) {
-
-
-
 perror("ERROR opening socket");
-
-
-
 exit(1);
 
 }
-
-
-
 server = gethostbyname(argv[1]);
-
-
-
+    
 if (server == NULL) {
-
-
-
 fprintf(stderr, "ERROR, no such host\n");
-
-
-
 exit(1);
 
 }
-
-
-
 bzero((char *)&serv_addr, sizeof(serv_addr));
-
-
-
 serv_addr.sin_family = AF_INET;
-
-
-
 bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
-
-
-
 serv_addr.sin_port = htons(port_no);
 
-
-
 // 서버에 연결
-
-
-
 if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-
-
-
 perror("ERROR connecting");
-
-
-
 exit(1);
 
 }
@@ -291,126 +229,46 @@ exit(1);
 
 
 // 닉네임 전송
-
-
-
 char nickname[32];
-
-
-
 printf("사용할 닉네임: ");
-
-
-
 fgets(nickname, 31, stdin);
-
-
-
 nickname[strcspn(nickname, "\n")] = 0; // 개행 문자 제거
-
-
-
 write(sockfd, nickname, strlen(nickname)); // 닉네임 서버에 전송
-
-
 
 // 시그널 핸들러 등록
 
-
-
 signal(SIGINT, signal_handler);
-
-
-
 // 별도의 스레드에서 메시지 읽기 시작
-
-
-
 pthread_t read_thread;
-
-
-
 pthread_create(&read_thread, NULL, read_messages, (void *)&sockfd);
-
-
-
 pthread_detach(read_thread);
-
-
-
 // 메인 스레드는 메시지 작성에 사용됨
-
-
 
 char buffer[MAX_BUFFER];
 
 
 
 while (1) {
-
-
-
 fgets(buffer, MAX_BUFFER - 1, stdin);
-
-
-
 buffer[strcspn(buffer, "\n")] = 0; // 개행 문자 제거
 
 
-
-
-
-
-
 char time_string[10];
-
-
-
 get_time_string(time_string, sizeof(time_string)); // 현재 시간 가져오기
 
 
-
-
-
-
-
 char message[MAX_MESSAGE];
-
-
-
 snprintf(message, MAX_MESSAGE, "%s [%s] :%s", time_string, nickname, buffer); // 메시지 작성
-
-
-
-
-
 
 
 // 클라이언트 측에서 메시지 출력
 
-
-
 printf("%s\n", message);
-
-
-
-
-
-
-
 // 메시지를 서버에 전송
-
-
-
 write(sockfd, buffer, strlen(buffer));
 
 }
-
-
-
 close(sockfd); // 소켓 닫기
-
-
 
 return 0;
 
