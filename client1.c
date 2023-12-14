@@ -43,8 +43,7 @@ void *read_messages(void *arg) {
             FILE *file = fopen(file_name, "wb");
 
             if (file == NULL) {
-                printf("파일을 열 수 없습니다.
-");
+                printf("파일을 열 수 없습니다.");
                 continue;
             }
 
@@ -60,11 +59,9 @@ void *read_messages(void *arg) {
 
             // 파일 닫기
             fclose(file);
-            printf("파일 '%s'를 성공적으로 받았습니다.
-", file_name);
+            printf("파일 '%s'를 성공적으로 받았습니다.", file_name);
         } else {
-            printf("%s
-", buffer); // 서버로부터 받은 메시지 출력
+            printf("%s", buffer); // 서버로부터 받은 메시지 출력
         }
     }
     return NULL;
@@ -73,19 +70,12 @@ void *read_messages(void *arg) {
 // 시그널 핸들러 함수
 void signal_handler(int signal) {
     if (signal == SIGINT) {
-        printf("
-======= 메뉴 =======
-");
-        printf("1. 채팅 나가기
-");
-        printf("2. 메시지 전송
-");
-        printf("3. 파일 전송
-");
-        printf("0. 메뉴 종료
-");
-        printf("===================
-");
+        printf("======= 메뉴 =======");
+        printf("1. 채팅 나가기");
+        printf("2. 메시지 전송");
+        printf("3. 파일 전송");
+        printf("0. 메뉴 종료");
+        printf("===================");
 
         char option;
         printf("메뉴를 선택하세요: ");
@@ -93,8 +83,7 @@ void signal_handler(int signal) {
         getchar(); // 버퍼 비우기
 
         if (option == '1') {
-            printf("서버 연결 종료
-");
+            printf("서버 연결 종료");
             close(sockfd);
             exit(0);
         } else if (option == '2') {
@@ -102,8 +91,7 @@ void signal_handler(int signal) {
             char buffer[MAX_BUFFER];
             printf("메시지를 입력하세요: ");
             fgets(buffer, MAX_BUFFER - 1, stdin);
-            buffer[strcspn(buffer, "
-")] = 0; // 개행 문자 제거
+            buffer[strcspn(buffer, "")] = 0; // 개행 문자 제거
             write(sockfd, buffer, strlen(buffer));
         } else if (option == '3') {
             // 파일 전송 요청
@@ -111,13 +99,11 @@ void signal_handler(int signal) {
             char file_name[32];
             printf("파일을 전송할 사용자의 닉네임을 입력하세요: ");
             fgets(receiver_nickname, 31, stdin);
-            receiver_nickname[strcspn(receiver_nickname, "
-")] = 0; // 개행 문자 제거
+            receiver_nickname[strcspn(receiver_nickname, "")] = 0; // 개행 문자 제거
 
             printf("전송할 파일명을 입력하세요: ");
             fgets(file_name, 31, stdin);
-            file_name[strcspn(file_name, "
-")] = 0; // 개행 문자 제거
+            file_name[strcspn(file_name, "")] = 0; // 개행 문자 제거
 
             char message[MAX_MESSAGE];
             snprintf(message, sizeof(message), "FILE_TRANSMIT_START:%s:%s", receiver_nickname, file_name);
@@ -126,8 +112,7 @@ void signal_handler(int signal) {
             // 파일 열기
             FILE *file = fopen(file_name, "rb");
             if (file == NULL) {
-                printf("파일을 열 수 없습니다.
-");
+                printf("파일을 열 수 없습니다.");
                 return;
             }
 
@@ -148,11 +133,9 @@ void signal_handler(int signal) {
             // 파일 닫기
             fclose(file);
         } else if (option == '0') {
-            printf("채팅으로 돌아갑니다.
-");
+            printf("채팅으로 돌아갑니다.");
         } else {
-            printf("없는 메뉴 번호입니다.
-");
+            printf("없는 메뉴 번호입니다.");
         }
     }
 }
@@ -164,8 +147,7 @@ int main(int argc, char *argv[]) {
 
     // 사용자로부터 호스트 이름과 포트 번호를 입력받음
     if (argc < 3) {
-        fprintf(stderr, "usage %s hostname port
-", argv[0]);
+        fprintf(stderr, "usage %s hostname port", argv[0]);
         exit(1);
     }
 
@@ -179,8 +161,7 @@ int main(int argc, char *argv[]) {
 
     server = gethostbyname(argv[1]);
     if (server == NULL) {
-        fprintf(stderr, "ERROR, no such host
-");
+        fprintf(stderr, "ERROR, no such host");
         exit(1);
     }
 
@@ -199,8 +180,7 @@ int main(int argc, char *argv[]) {
     char nickname[32];
     printf("사용할 닉네임: ");
     fgets(nickname, 31, stdin);
-    nickname[strcspn(nickname, "
-")] = 0; // 개행 문자 제거
+    nickname[strcspn(nickname, "")] = 0; // 개행 문자 제거
     write(sockfd, nickname, strlen(nickname)); // 닉네임 서버에 전송
 
     // 시그널 핸들러 등록
@@ -215,8 +195,7 @@ int main(int argc, char *argv[]) {
     char buffer[MAX_BUFFER];
     while (1) {
         fgets(buffer, MAX_BUFFER - 1, stdin);
-        buffer[strcspn(buffer, "
-")] = 0; // 개행 문자 제거
+        buffer[strcspn(buffer, "")] = 0; // 개행 문자 제거
 
         char response;
         printf("%s님이 %s 파일을 보내려고 합니다. 수락하시겠습니까? y/n: ", nickname, buffer);
@@ -242,3 +221,9 @@ int main(int argc, char *argv[]) {
             snprintf(message, MAX_MESSAGE, "%s [%s] :%s", time_string, nickname, buffer); // 메시지 작성
 
             // 클라이언트 측에서 메시지 출력
+            write(sockfd, message, strlen(message)); // 메시지 서버에 전송
+        }
+    }
+
+    return 0;
+}
